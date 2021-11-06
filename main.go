@@ -7,28 +7,28 @@ import (
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	"log"
-	"net/http"
 	"os"
+	"strconv"
 	"time"
 )
 
 type Product struct {
 	ID      int64     `json:"id"`
 	Title   string    `json:"title"`
-	Count   int32     `json:"count"`
+	Count   int64     `json:"count"`
 	Price   float64   `json:"price"`
 	Created time.Time `json:"created,omitempty"`
 	Updated time.Time `json:"updated,omitempty"`
 }
 
-type errBR struct {
-	Error string
-}
+// type errBR struct {
+// 	Error string
+// }
 
-var Products = []Product{
-	{ID: 1, Title: "Apple", Count: 200, Price: 54.0},
-	{ID: 2, Title: "Orange", Count: 250, Price: 72.5},
-}
+// var Products = []Product{
+// 	{ID: 1, Title: "Apple", Count: 200, Price: 54.0},
+// 	{ID: 2, Title: "Orange", Count: 250, Price: 72.5},
+// }
 
 type DB struct {
 	db *sql.DB
@@ -69,22 +69,78 @@ func (db *DB) getProducts(c *gin.Context) {
 	c.JSON(200, p)
 }
 
-func postProduct(c *gin.Context) {
+func (db *DB) postProduct(c *gin.Context) {
 	var newProduct Product
-	if err := c.BindJSON(&newProduct); err != nil {
-		c.IndentedJSON(http.StatusBadRequest, errBR{"bad_request"})
+
+	ID := c.GetHeader("id")
+	if len(ID) == 0 {
+		log.Fatal("incorrect ID")
+	}
+	newProduct.Title = ID
+
+	title := c.GetHeader("title")
+	if len(title) == 0 {
+		log.Fatal("incorrect Title")
+	}
+	newProduct.Title = title
+
+	count, err := strconv.ParseInt(c.GetHeader("count"), 10, 32)
+	if err != nil {
+		log.Fatal("incorrect Count")
+	}
+	newProduct.Count = count
+
+	price, err := strconv.ParseFloat(c.GetHeader("price"), 32)
+	if err != nil {
+		log.Fatal("incorrect Price")
+	}
+	newProduct.Price = price
+
+	newProduct.Created = time.Now()
+	newProduct.Updated = time.Now()
+
+	err = db.insertProduct(newProduct)
+	if err != nil {
 		return
 	}
+	c.JSON(200, newProduct)
 
-	Products = append(Products, newProduct)
-	c.IndentedJSON(http.StatusCreated, newProduct)
+	// if err := c.BindJSON(&newProduct); err != nil {
+	// 	c.IndentedJSON(http.StatusBadRequest, errBR{"bad_request"})
+	// 	return
+	// }
+	//
+	// Products = append(Products, newProduct)
+	// c.IndentedJSON(http.StatusCreated, newProduct)
+}
+
+func (db *DB) insertProduct(p Product) error {
+	tx, err := db.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec("insert into products (title, count, price) values ($1, $2, $3)",
+		p.Title, p.Count, p.Price)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec("insert into logs (entity, action) values ($1, $2)",
+		"product", "created")
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 func main() {
 	conn := Connect()
 	router := gin.Default()
 	router.GET("/products", conn.getProducts)
-	router.POST("/products", postProduct)
+	router.POST("/products", conn.postProduct)
 	err := router.Run("localhost:8080")
 	if err != nil {
 		return
@@ -155,27 +211,6 @@ func (db *DB) getProductsSQL() ([]Product, error) {
 // 	return u, err
 // }
 //
-func insertUser(db *sql.DB, p Product) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	_, err = tx.Exec("insert into products (title, count, price) values ($1, $2, $3)",
-		p.Title, p.Count, p.Price)
-	if err != nil {
-		return err
-	}
-
-	_, err = tx.Exec("insert into logs (entity, action) values ($1, $2)",
-		"product", "created")
-	if err != nil {
-		return err
-	}
-
-	return tx.Commit()
-}
 
 //
 // func deleteUser(db *sql.DB, id int) error {
