@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
 	"log"
@@ -28,8 +27,26 @@ var Products = []Product{
 	{ID: 2, Title: "Orange", Count: 250, Price: 72.5},
 }
 
-func getProducts(c *gin.Context) {
-	c.IndentedJSON(http.StatusOK, Products)
+type DB struct {
+	db *sql.DB
+}
+
+func Connect() *DB {
+	db, err := sql.Open("postgres", "host=127.0.0.1 port=5432 user=postgres dbname=postgres sslmode=disable password=qwerty123")
+	if err != nil {
+		log.Fatal(err)
+	}
+	// defer db.Close()
+
+	return &DB{db: db}
+}
+
+func (db *DB) getProducts(c *gin.Context) {
+	p, err := db.getProductsSQL()
+	if err != nil {
+		return
+	}
+	c.JSON(200, p)
 }
 
 func postProduct(c *gin.Context) {
@@ -44,28 +61,23 @@ func postProduct(c *gin.Context) {
 }
 
 func main() {
-	// router := gin.Default()
-	// router.GET("/products", getProducts)
-	// router.POST("/products", postProduct)
-	//
-	// err := router.Run("localhost:8080")
-	// if err != nil {
-	// 	return
-	// }
-
-	db, err := sql.Open("postgres", "host=127.0.0.1 port=5432 user=postgres dbname=postgres sslmode=disable password=qwerty123")
+	conn := Connect()
+	router := gin.Default()
+	router.GET("/products", conn.getProducts)
+	router.POST("/products", postProduct)
+	err := router.Run("localhost:8080")
 	if err != nil {
-		log.Fatal(err)
+		return
 	}
-	defer db.Close()
 
-	err = insertUser(db, Product{
-		Title: "Apple",
-		Count: 200,
-		Price: 54.0,
-	})
-
-	fmt.Println(getProductsSQL(db))
+	// err = insertUser(conn.db, Product{
+	// 	Title: "Apple",
+	// 	Count: 200,
+	// 	Price: 54.0,
+	// })
+	//
+	//
+	// fmt.Println(conn.getProductsSQL())
 	//
 	// if err := db.Ping(); err != nil {
 	// 	log.Fatal(err)
@@ -89,8 +101,8 @@ func main() {
 	//     fmt.Println(users)
 }
 
-func getProductsSQL(db *sql.DB) ([]Product, error) {
-	rows, err := db.Query("select * from products")
+func (db *DB) getProductsSQL() ([]Product, error) {
+	rows, err := db.db.Query("select * from products")
 	if err != nil {
 		return nil, err
 	}
