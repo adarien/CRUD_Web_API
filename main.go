@@ -1,8 +1,11 @@
 package main
 
 import (
+	"database/sql"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
+	"log"
 	"net/http"
 	"time"
 )
@@ -41,30 +44,32 @@ func postProduct(c *gin.Context) {
 }
 
 func main() {
-	router := gin.Default()
-	router.GET("/products", getProducts)
-	router.POST("/products", postProduct)
-
-	err := router.Run("localhost:8080")
-	if err != nil {
-		return
-	}
-
-	// db, err := sql.Open("postgres", "host=127.0.0.1 port=5432 user=postgres dbname=postgres sslmode=disable password=qwerty123")
+	// router := gin.Default()
+	// router.GET("/products", getProducts)
+	// router.POST("/products", postProduct)
+	//
+	// err := router.Run("localhost:8080")
 	// if err != nil {
-	// 	log.Fatal(err)
+	// 	return
 	// }
-	// defer db.Close()
+
+	db, err := sql.Open("postgres", "host=127.0.0.1 port=5432 user=postgres dbname=postgres sslmode=disable password=qwerty123")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	err = insertUser(db, Product{
+		Title: "Apple",
+		Count: 200,
+		Price: 54.0,
+	})
+
+	fmt.Println(getProductsSQL(db))
 	//
 	// if err := db.Ping(); err != nil {
 	// 	log.Fatal(err)
 	// }
-
-	// err = insertUser(db, User{
-	//     Name:     "Petya",
-	//     Email:    "petya@gmail.com",
-	//     Password: "kjrhg754yv754yck545g45h54h55gg",
-	// })
 
 	// users, err := getUsers(db)
 	// if err != nil {
@@ -84,31 +89,32 @@ func main() {
 	//     fmt.Println(users)
 }
 
-// func getUsers(db *sql.DB) ([]User, error) {
-// 	rows, err := db.Query("select * from users")
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	defer rows.Close()
-//
-// 	users := make([]User, 0)
-// 	for rows.Next() {
-// 		u := User{}
-// 		err := rows.Scan(&u.ID, &u.Name, &u.Email, &u.Password, &u.RegisteredAt)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-//
-// 		users = append(users, u)
-// 	}
-//
-// 	err = rows.Err()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-//
-// 	return users, nil
-// }
+func getProductsSQL(db *sql.DB) ([]Product, error) {
+	rows, err := db.Query("select * from products")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	products := make([]Product, 0)
+	for rows.Next() {
+		p := Product{}
+		err := rows.Scan(&p.ID, &p.Title, &p.Count, &p.Price, &p.Created, &p.Updated)
+		if err != nil {
+			return nil, err
+		}
+
+		products = append(products, p)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	return products, nil
+}
+
 //
 // func getUserByID(db *sql.DB, id int) (User, error) {
 // 	var u User
@@ -117,27 +123,28 @@ func main() {
 // 	return u, err
 // }
 //
-// func insertUser(db *sql.DB, u User) error {
-// 	tx, err := db.Begin()
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer tx.Rollback()
-//
-// 	_, err = tx.Exec("insert into users (name, email, password) values ($1, $2, $3)",
-// 		u.Name, u.Email, u.Password)
-// 	if err != nil {
-// 		return err
-// 	}
-//
-// 	_, err = tx.Exec("insert into logs (entity, action) values ($1, $2)",
-// 		"user", "created")
-// 	if err != nil {
-// 		return err
-// 	}
-//
-// 	return tx.Commit()
-// }
+func insertUser(db *sql.DB, p Product) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec("insert into products (title, count, price) values ($1, $2, $3)",
+		p.Title, p.Count, p.Price)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec("insert into logs (entity, action) values ($1, $2)",
+		"product", "created")
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 //
 // func deleteUser(db *sql.DB, id int) error {
 // 	_, err := db.Exec("delete from users where id = $1", id)
