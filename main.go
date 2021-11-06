@@ -2,10 +2,13 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	"log"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -31,8 +34,25 @@ type DB struct {
 	db *sql.DB
 }
 
+func init() {
+	if err := godotenv.Load(); err != nil {
+		log.Print(".env file not found")
+	}
+}
+
 func Connect() *DB {
-	db, err := sql.Open("postgres", "host=127.0.0.1 port=5432 user=postgres dbname=postgres sslmode=disable password=qwerty123")
+	driverName, _ := os.LookupEnv("DRIVER")
+	host, _ := os.LookupEnv("HOST")
+	port, _ := os.LookupEnv("PORT")
+	user, _ := os.LookupEnv("USER")
+	dbname, _ := os.LookupEnv("DBNAME")
+	sslMode, _ := os.LookupEnv("SSLMODE")
+	password, _ := os.LookupEnv("PASSWORD")
+
+	dataSourceName := fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=%s password=%s",
+		host, port, user, dbname, sslMode, password)
+	fmt.Println(host)
+	db, err := sql.Open(driverName, dataSourceName)
 	if err != nil {
 		log.Fatal(err)
 	}
