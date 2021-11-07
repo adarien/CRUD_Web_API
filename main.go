@@ -80,7 +80,69 @@ func (db *DB) deleteProduct(c *gin.Context) {
 	if err != nil {
 		return
 	}
-	// c.JSON(200, gin.H{"status": "deleted"})
+	c.JSON(200, gin.H{"status": "deleted"})
+}
+
+func (db *DB) updateProduct(c *gin.Context) {
+	tx, err := db.db.Begin()
+	if err != nil {
+		return
+	}
+	defer tx.Rollback()
+
+	var updProduct Product
+	ID, err := strconv.ParseInt(c.GetHeader("id"), 10, 32)
+	if err != nil {
+		log.Fatal("incorrect ID")
+	}
+	updProduct.ID = ID
+
+	sTitle := c.GetHeader("title")
+	sCount := c.GetHeader("count")
+	sPrice := c.GetHeader("price")
+
+	if sTitle != "" {
+		updProduct.Title = sTitle
+		field := "title"
+		err := db.updateProductDB(tx, updProduct, field)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	if sCount != "" {
+		count, err := strconv.ParseInt(c.GetHeader("count"), 10, 32)
+		if err != nil {
+			log.Fatal("incorrect Count")
+		}
+		updProduct.Count = count
+		field := "count"
+		err = db.updateProductDB(tx, updProduct, field)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	if sPrice != "" {
+		price, err := strconv.ParseFloat(c.GetHeader("price"), 32)
+		if err != nil {
+			log.Fatal("incorrect Price")
+		}
+		updProduct.Price = price
+		field := "price"
+		err = db.updateProductDB(tx, updProduct, field)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	_, err = tx.Exec("insert into logs (entity, action) values ($1, $2)",
+		"product", "updated")
+	if err != nil {
+		log.Fatal(err)
+	}
+	tx.Commit()
+	c.JSON(200, gin.H{"status": "updated"})
 }
 
 func parseNewProduct(c *gin.Context) Product {
@@ -118,14 +180,14 @@ func parseNewProduct(c *gin.Context) Product {
 
 func (db *DB) postProduct(c *gin.Context) {
 	newProduct := parseNewProduct(c)
-	err := db.insertProduct(newProduct)
+	err := db.insertProductDB(newProduct)
 	if err != nil {
 		log.Fatal(err)
 	}
 	c.JSON(200, newProduct)
 }
 
-func (db *DB) insertProduct(p Product) error {
+func (db *DB) insertProductDB(p Product) error {
 	tx, err := db.db.Begin()
 	if err != nil {
 		return err
@@ -153,6 +215,7 @@ func main() {
 	router.GET("/products", conn.getProducts)
 	router.GET("/product", conn.getProduct)
 	router.POST("/products", conn.postProduct)
+	router.PUT("/product", conn.updateProduct)
 	router.DELETE("/product", conn.deleteProduct)
 	err := router.Run("localhost:8080")
 	if err != nil {
@@ -220,7 +283,7 @@ func (db *DB) deleteProductDB(id int64) error {
 		return err
 	}
 	_, err = tx.Exec("insert into logs (entity, action) values ($1, $2)",
-		"product", "delete")
+		"product", "deleted")
 	if err != nil {
 		return err
 	}
@@ -228,10 +291,25 @@ func (db *DB) deleteProductDB(id int64) error {
 	return tx.Commit()
 }
 
-//
-// func updateUser(db *sql.DB, id int, newUser User) error {
-// 	_, err := db.Exec("update users set name=$1, email=$2 where id=$3",
-// 		newUser.Name, newUser.Email, id)
-//
-// 	return err
-// }
+func (db *DB) updateProductDB(tx *sql.Tx, p Product, field string) error {
+	qwUpdate := fmt.Sprintf("update products set %s=$1 where id=$2", field)
+	switch field {
+	case "title":
+		_, err := tx.Exec(qwUpdate, p.Title, p.ID)
+		if err != nil {
+			return err
+		}
+	case "count":
+		_, err := tx.Exec(qwUpdate, p.Count, p.ID)
+		if err != nil {
+			return err
+		}
+	case "price":
+		_, err := tx.Exec(qwUpdate, p.Price, p.ID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
