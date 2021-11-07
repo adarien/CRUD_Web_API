@@ -5,10 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	"github.com/spf13/viper"
 	"log"
-	"os"
 	"strconv"
 	"time"
 )
@@ -26,20 +25,19 @@ type DB struct {
 	db *sql.DB
 }
 
-func init() {
-	if err := godotenv.Load(); err != nil {
-		log.Print(".env file not found")
-	}
-}
-
 func Connect() *DB {
-	driverName, _ := os.LookupEnv("DRIVER")
-	host, _ := os.LookupEnv("HOST")
-	port, _ := os.LookupEnv("PORT")
-	user, _ := os.LookupEnv("USER")
-	dbname, _ := os.LookupEnv("DBNAME")
-	sslMode, _ := os.LookupEnv("SSLMODE")
-	password, _ := os.LookupEnv("PASSWORD")
+	viper.SetConfigFile(".env")
+	if err := viper.ReadInConfig(); err != nil {
+		log.Fatal(err)
+	}
+
+	driverName := viper.GetString("DRIVER")
+	host := viper.GetString("HOST")
+	port := viper.GetString("PORT")
+	user := viper.GetString("USER")
+	dbname := viper.GetString("DBNAME")
+	sslMode := viper.GetString("SSLMODE")
+	password := viper.GetString("PASSWORD")
 
 	dataSourceName := fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=%s password=%s",
 		host, port, user, dbname, sslMode, password)
