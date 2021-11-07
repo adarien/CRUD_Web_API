@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -83,65 +84,87 @@ func (db *DB) deleteProduct(c *gin.Context) {
 	c.JSON(200, gin.H{"status": "deleted"})
 }
 
-func (db *DB) updateProduct(c *gin.Context) {
-	tx, err := db.db.Begin()
-	if err != nil {
-		return
-	}
-	defer tx.Rollback()
+type productForUpdate struct {
+	ID    string
+	title string
+	count string
+	price string
+}
 
+func (db *DB) checkUpdateProduct(tx *sql.Tx, uP productForUpdate) error {
 	var updProduct Product
-	ID, err := strconv.ParseInt(c.GetHeader("id"), 10, 32)
+	ID, err := strconv.ParseInt(uP.ID, 10, 32)
 	if err != nil {
-		log.Fatal("incorrect ID")
+		return errors.New("incorrect ID")
 	}
 	updProduct.ID = ID
 
-	sTitle := c.GetHeader("title")
-	sCount := c.GetHeader("count")
-	sPrice := c.GetHeader("price")
-
-	if sTitle != "" {
-		updProduct.Title = sTitle
+	if uP.title != "" {
+		updProduct.Title = uP.title
 		field := "title"
 		err := db.updateProductDB(tx, updProduct, field)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 	}
 
-	if sCount != "" {
-		count, err := strconv.ParseInt(c.GetHeader("count"), 10, 32)
+	if uP.count != "" {
+		count, err := strconv.ParseInt(uP.count, 10, 32)
 		if err != nil {
-			log.Fatal("incorrect Count")
+			return errors.New("incorrect Count")
 		}
 		updProduct.Count = count
 		field := "count"
 		err = db.updateProductDB(tx, updProduct, field)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 	}
 
-	if sPrice != "" {
-		price, err := strconv.ParseFloat(c.GetHeader("price"), 32)
+	if uP.price != "" {
+		price, err := strconv.ParseFloat(uP.price, 32)
 		if err != nil {
-			log.Fatal("incorrect Price")
+			return errors.New("incorrect Price")
 		}
 		updProduct.Price = price
 		field := "price"
 		err = db.updateProductDB(tx, updProduct, field)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
+	}
+	return nil
+}
+
+func (db *DB) updateProduct(c *gin.Context) {
+	tx, err := db.db.Begin()
+	if err != nil {
+		return
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var p productForUpdate
+	p.ID = c.GetHeader("id")
+	p.title = c.GetHeader("title")
+	p.count = c.GetHeader("count")
+	p.price = c.GetHeader("price")
+	if p.title == "" && p.count == "" && p.price == "" {
+		log.Panic("empty field")
+	}
+	err = db.checkUpdateProduct(tx, p)
+	if err != nil {
+		log.Panic(err)
 	}
 
 	_, err = tx.Exec("insert into logs (entity, action) values ($1, $2)",
 		"product", "updated")
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
-	tx.Commit()
+	err = tx.Commit()
+	if err != nil {
+		log.Panic(err)
+	}
 	c.JSON(200, gin.H{"status": "updated"})
 }
 
@@ -192,7 +215,7 @@ func (db *DB) insertProductDB(p Product) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	_, err = tx.Exec("insert into products (id, title, count, price) values ($1, $2, $3, $4)",
 		p.ID, p.Title, p.Count, p.Price)
@@ -228,7 +251,7 @@ func (db *DB) getProductsDB() ([]Product, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	products := make([]Product, 0)
 	for rows.Next() {
@@ -253,7 +276,7 @@ func (db *DB) getProductDB(id int64) (Product, error) {
 	if err != nil {
 		return product, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		err := rows.Scan(&product.ID, &product.Title, &product.Count,
@@ -276,7 +299,7 @@ func (db *DB) deleteProductDB(id int64) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	_, err = db.db.Query("delete from products where id=$1", id)
 	if err != nil {
