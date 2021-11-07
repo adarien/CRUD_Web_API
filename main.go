@@ -21,15 +21,6 @@ type Product struct {
 	Updated time.Time `json:"updated,omitempty"`
 }
 
-// type errBR struct {
-// 	Error string
-// }
-
-// var Products = []Product{
-// 	{ID: 1, Title: "Apple", Count: 200, Price: 54.0},
-// 	{ID: 2, Title: "Orange", Count: 250, Price: 72.5},
-// }
-
 type DB struct {
 	db *sql.DB
 }
@@ -51,67 +42,75 @@ func Connect() *DB {
 
 	dataSourceName := fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=%s password=%s",
 		host, port, user, dbname, sslMode, password)
-	fmt.Println(host)
+	fmt.Println(dataSourceName)
 	db, err := sql.Open(driverName, dataSourceName)
 	if err != nil {
 		log.Fatal(err)
 	}
-	// defer db.Close()
 
 	return &DB{db: db}
 }
 
 func (db *DB) getProducts(c *gin.Context) {
-	p, err := db.getProductsSQL()
+	p, err := db.getProductsDB()
 	if err != nil {
 		return
 	}
 	c.JSON(200, p)
 }
 
-func (db *DB) postProduct(c *gin.Context) {
-	var newProduct Product
-
-	ID := c.GetHeader("id")
-	if len(ID) == 0 {
+func (db *DB) getProduct(c *gin.Context) {
+	ID, err := strconv.ParseInt(c.GetHeader("id"), 10, 32)
+	if err != nil {
 		log.Fatal("incorrect ID")
 	}
-	newProduct.Title = ID
+	p, err := db.getProductDB(ID)
+	if err != nil {
+		return
+	}
+	c.JSON(200, p)
+}
+
+func parseNewProduct(c *gin.Context) Product {
+	var newProduct Product
+
+	ID, err := strconv.ParseInt(c.GetHeader("id"), 10, 32)
+	if err != nil {
+		log.Fatal("incorrect ID")
+	}
 
 	title := c.GetHeader("title")
 	if len(title) == 0 {
 		log.Fatal("incorrect Title")
 	}
-	newProduct.Title = title
 
 	count, err := strconv.ParseInt(c.GetHeader("count"), 10, 32)
 	if err != nil {
 		log.Fatal("incorrect Count")
 	}
-	newProduct.Count = count
 
 	price, err := strconv.ParseFloat(c.GetHeader("price"), 32)
 	if err != nil {
 		log.Fatal("incorrect Price")
 	}
-	newProduct.Price = price
 
+	newProduct.ID = ID
+	newProduct.Title = title
+	newProduct.Price = price
+	newProduct.Count = count
 	newProduct.Created = time.Now()
 	newProduct.Updated = time.Now()
 
-	err = db.insertProduct(newProduct)
+	return newProduct
+}
+
+func (db *DB) postProduct(c *gin.Context) {
+	newProduct := parseNewProduct(c)
+	err := db.insertProduct(newProduct)
 	if err != nil {
-		return
+		log.Fatal(err)
 	}
 	c.JSON(200, newProduct)
-
-	// if err := c.BindJSON(&newProduct); err != nil {
-	// 	c.IndentedJSON(http.StatusBadRequest, errBR{"bad_request"})
-	// 	return
-	// }
-	//
-	// Products = append(Products, newProduct)
-	// c.IndentedJSON(http.StatusCreated, newProduct)
 }
 
 func (db *DB) insertProduct(p Product) error {
@@ -121,8 +120,8 @@ func (db *DB) insertProduct(p Product) error {
 	}
 	defer tx.Rollback()
 
-	_, err = tx.Exec("insert into products (title, count, price) values ($1, $2, $3)",
-		p.Title, p.Count, p.Price)
+	_, err = tx.Exec("insert into products (id, title, count, price) values ($1, $2, $3, $4)",
+		p.ID, p.Title, p.Count, p.Price)
 	if err != nil {
 		return err
 	}
@@ -140,44 +139,15 @@ func main() {
 	conn := Connect()
 	router := gin.Default()
 	router.GET("/products", conn.getProducts)
+	router.GET("/product", conn.getProduct)
 	router.POST("/products", conn.postProduct)
 	err := router.Run("localhost:8080")
 	if err != nil {
-		return
+		log.Fatal(err)
 	}
-
-	// err = insertUser(conn.db, Product{
-	// 	Title: "Apple",
-	// 	Count: 200,
-	// 	Price: 54.0,
-	// })
-	//
-	//
-	// fmt.Println(conn.getProductsSQL())
-	//
-	// if err := db.Ping(); err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	// users, err := getUsers(db)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// fmt.Println(users)
-	//
-	//     err = insertUser(db, User{
-	//        Name: "Петя",
-	//        Email: "grisha@ninja.go",
-	//     })
-	//
-	//     users, err = getUsers(db)
-	//     if err != nil {
-	//        log.Fatal(err)
-	//     }
-	//     fmt.Println(users)
 }
 
-func (db *DB) getProductsSQL() ([]Product, error) {
+func (db *DB) getProductsDB() ([]Product, error) {
 	rows, err := db.db.Query("select * from products")
 	if err != nil {
 		return nil, err
@@ -191,10 +161,8 @@ func (db *DB) getProductsSQL() ([]Product, error) {
 		if err != nil {
 			return nil, err
 		}
-
 		products = append(products, p)
 	}
-
 	err = rows.Err()
 	if err != nil {
 		return nil, err
@@ -203,14 +171,29 @@ func (db *DB) getProductsSQL() ([]Product, error) {
 	return products, nil
 }
 
-//
-// func getUserByID(db *sql.DB, id int) (User, error) {
-// 	var u User
-// 	err := db.QueryRow("select * from users where id = $1", id).
-// 		Scan(&u.ID, &u.Name, &u.Email, &u.Password, &u.RegisteredAt)
-// 	return u, err
-// }
-//
+func (db *DB) getProductDB(id int64) (Product, error) {
+	product := Product{}
+	rows, err := db.db.Query("select * from products where id=$1", id)
+	if err != nil {
+		return product, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		err := rows.Scan(&product.ID, &product.Title, &product.Count,
+			&product.Price, &product.Created, &product.Updated)
+		if err != nil {
+			return product, err
+		}
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return product, err
+	}
+
+	return product, nil
+}
 
 //
 // func deleteUser(db *sql.DB, id int) error {
