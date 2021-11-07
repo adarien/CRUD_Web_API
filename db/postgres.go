@@ -137,7 +137,7 @@ func (db *DB) DeleteProductDB(id int64) error {
 }
 
 func (db *DB) UpdateProductDB(tx *sql.Tx, p Product, field string) error {
-	qwUpdate := fmt.Sprintf("update products set %s=$1 where id=$2", field)
+	qwUpdate := fmt.Sprintf("update products set %s=$1, updated=now() where id=$2", field)
 	switch field {
 	case "title":
 		_, err := tx.Exec(qwUpdate, p.Title, p.ID)
