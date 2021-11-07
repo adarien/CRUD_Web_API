@@ -71,6 +71,18 @@ func (db *DB) getProduct(c *gin.Context) {
 	c.JSON(200, p)
 }
 
+func (db *DB) deleteProduct(c *gin.Context) {
+	ID, err := strconv.ParseInt(c.GetHeader("id"), 10, 32)
+	if err != nil {
+		log.Fatal("incorrect ID")
+	}
+	err = db.deleteProductDB(ID)
+	if err != nil {
+		return
+	}
+	// c.JSON(200, gin.H{"status": "deleted"})
+}
+
 func parseNewProduct(c *gin.Context) Product {
 	var newProduct Product
 
@@ -141,6 +153,7 @@ func main() {
 	router.GET("/products", conn.getProducts)
 	router.GET("/product", conn.getProduct)
 	router.POST("/products", conn.postProduct)
+	router.DELETE("/product", conn.deleteProduct)
 	err := router.Run("localhost:8080")
 	if err != nil {
 		log.Fatal(err)
@@ -195,12 +208,26 @@ func (db *DB) getProductDB(id int64) (Product, error) {
 	return product, nil
 }
 
-//
-// func deleteUser(db *sql.DB, id int) error {
-// 	_, err := db.Exec("delete from users where id = $1", id)
-//
-// 	return err
-// }
+func (db *DB) deleteProductDB(id int64) error {
+	tx, err := db.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = db.db.Query("delete from products where id=$1", id)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec("insert into logs (entity, action) values ($1, $2)",
+		"product", "delete")
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 //
 // func updateUser(db *sql.DB, id int, newUser User) error {
 // 	_, err := db.Exec("update users set name=$1, email=$2 where id=$3",
