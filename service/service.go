@@ -2,10 +2,10 @@ package service
 
 import (
 	"CRUD_Web_API/db"
+	l "CRUD_Web_API/logs"
 	"database/sql"
 	"errors"
 	"github.com/gin-gonic/gin"
-	"log"
 	"strconv"
 	"time"
 )
@@ -24,22 +24,22 @@ func parseNewProduct(c *gin.Context) db.Product {
 
 	ID, err := strconv.ParseInt(c.GetHeader("id"), 10, 32)
 	if err != nil {
-		log.Fatal("incorrect ID")
+		l.ERROR.Fatal("incorrect ID")
 	}
 
 	title := c.GetHeader("title")
 	if len(title) == 0 {
-		log.Fatal("incorrect Title")
+		l.ERROR.Fatal("incorrect Title")
 	}
 
 	count, err := strconv.ParseInt(c.GetHeader("count"), 10, 32)
 	if err != nil {
-		log.Fatal("incorrect Count")
+		l.ERROR.Fatal("incorrect Count")
 	}
 
 	price, err := strconv.ParseFloat(c.GetHeader("price"), 32)
 	if err != nil {
-		log.Fatal("incorrect Price")
+		l.ERROR.Fatal("incorrect Price")
 	}
 
 	newProduct.ID = ID
@@ -56,7 +56,7 @@ func (s *Service) PostProduct(c *gin.Context) {
 	newProduct := parseNewProduct(c)
 	err := s.db.InsertProductDB(newProduct)
 	if err != nil {
-		log.Fatal(err)
+		l.ERROR.Fatal(err)
 	}
 	c.JSON(200, newProduct)
 }
@@ -72,7 +72,7 @@ func (s *Service) GetProducts(c *gin.Context) {
 func (s *Service) GetProduct(c *gin.Context) {
 	ID, err := strconv.ParseInt(c.GetHeader("id"), 10, 32)
 	if err != nil {
-		log.Fatal("incorrect ID")
+		l.ERROR.Fatal("incorrect ID")
 	}
 	p, err := s.db.GetProductDB(ID)
 	if err != nil {
@@ -84,7 +84,7 @@ func (s *Service) GetProduct(c *gin.Context) {
 func (s *Service) DeleteProduct(c *gin.Context) {
 	ID, err := strconv.ParseInt(c.GetHeader("id"), 10, 32)
 	if err != nil {
-		log.Fatal("incorrect ID")
+		l.ERROR.Fatal("incorrect ID")
 	}
 	err = s.db.DeleteProductDB(ID)
 	if err != nil {
@@ -158,21 +158,21 @@ func (s *Service) UpdateProduct(c *gin.Context) {
 	p.count = c.GetHeader("count")
 	p.price = c.GetHeader("price")
 	if p.title == "" && p.count == "" && p.price == "" {
-		log.Panic("empty field")
+		l.ERROR.Panic("empty field")
 	}
 	err = s.checkUpdateProduct(tx, p)
 	if err != nil {
-		log.Panic(err)
+		l.ERROR.Panic(err)
 	}
 
 	_, err = tx.Exec("insert into logs (entity, action) values ($1, $2)",
 		"product", "updated")
 	if err != nil {
-		log.Panic(err)
+		l.ERROR.Panic(err)
 	}
 	err = tx.Commit()
 	if err != nil {
-		log.Panic(err)
+		l.ERROR.Panic(err)
 	}
 	c.JSON(200, gin.H{"status": "updated"})
 }

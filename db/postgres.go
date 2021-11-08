@@ -1,10 +1,10 @@
 package db
 
 import (
+	l "CRUD_Web_API/logs"
 	"database/sql"
 	"fmt"
 	"github.com/spf13/viper"
-	"log"
 	"time"
 )
 
@@ -24,7 +24,7 @@ type Product struct {
 func Connect() *DB {
 	viper.SetConfigFile(".env")
 	if err := viper.ReadInConfig(); err != nil {
-		log.Fatal(err)
+		l.ERROR.Fatal(err)
 	}
 
 	driverName := viper.GetString("DRIVER")
@@ -40,7 +40,7 @@ func Connect() *DB {
 	fmt.Println(dataSourceName)
 	db, err := sql.Open(driverName, dataSourceName)
 	if err != nil {
-		log.Fatal(err)
+		l.ERROR.Fatal(err)
 	}
 
 	return &DB{DB: db}
