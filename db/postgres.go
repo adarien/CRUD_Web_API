@@ -3,6 +3,7 @@ package db
 import (
 	l "CRUD_Web_API/logs"
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/spf13/viper"
 	"time"
@@ -100,17 +101,23 @@ func (db *DB) GetProductDB(id int64) (Product, error) {
 	}
 	defer func() { _ = rows.Close() }()
 
+	count := 0
 	for rows.Next() {
 		err := rows.Scan(&product.ID, &product.Title, &product.Count,
 			&product.Price, &product.Created, &product.Updated)
 		if err != nil {
 			return product, err
 		}
+		count++
 	}
 
 	err = rows.Err()
 	if err != nil {
 		return product, err
+	}
+
+	if count == 0 {
+		return product, errors.New("id not found")
 	}
 
 	return product, nil
@@ -137,6 +144,10 @@ func (db *DB) DeleteProductDB(id int64) error {
 }
 
 func (db *DB) UpdateProductDB(tx *sql.Tx, p Product, field string) error {
+	_, err := db.GetProductDB(p.ID)
+	if err != nil {
+		return err
+	}
 	qwUpdate := fmt.Sprintf("update products set %s=$1, updated=now() where id=$2", field)
 	switch field {
 	case "title":

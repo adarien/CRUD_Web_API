@@ -76,7 +76,7 @@ func (s *Service) GetProduct(c *gin.Context) {
 	}
 	p, err := s.db.GetProductDB(ID)
 	if err != nil {
-		return
+		l.INFO.Panic(err)
 	}
 	c.JSON(200, p)
 }

@@ -7,20 +7,20 @@ import (
 )
 
 var (
-	// _INFO *logs.Logger
+	INFO  *log.Logger
 	ERROR *log.Logger
 )
 
-func initLog(errorHandle io.Writer) {
+func initLog(infoHandle io.Writer, errorHandle io.Writer) {
 
-	// _INFO = logs.New(infoHandle, "INFO\t", logs.Ldate|logs.Ltime)
+	INFO = log.New(infoHandle, "INFO\t", log.Ldate|log.Ltime)
 	ERROR = log.New(errorHandle, "ERROR\t", log.Ldate|log.Ltime)
 }
 
 func init() {
-	logfile, err := os.Create("cmd/log.log")
+	logfile, err := os.Create("logs/log.log")
 	if err != nil {
 		log.Fatalln(err)
 	}
-	initLog(logfile)
+	initLog(logfile, logfile)
 }
