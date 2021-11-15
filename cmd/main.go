@@ -1,10 +1,10 @@
 package main
 
 import (
-	l "CRUD_Web_API/logs"
 	"CRUD_Web_API/service"
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
+	"github.com/sirupsen/logrus"
 )
 
 func main() {
@@ -18,6 +18,6 @@ func main() {
 
 	err := router.Run("localhost:8080")
 	if err != nil {
-		l.ERROR.Fatal(err)
+		logrus.Fatal(err)
 	}
 }
